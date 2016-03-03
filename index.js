@@ -88,7 +88,7 @@ var getCertificate = function (certUrl, cb) {
     }).on('error', cb)
 };
 
-var validateSignature = function (message, cb) {
+var validateSignature = function (message, cb, encoding) {
     if (message['SignatureVersion'] !== '1') {
         cb(new Error('The signature version '
             + message['SignatureVersion'] + ' is not supported.'));
@@ -99,7 +99,7 @@ var validateSignature = function (message, cb) {
     for (var i = 0; i < signableKeys.length; i++) {
         if (signableKeys[i] in message) {
             verifier.update(signableKeys[i] + "\n"
-                + message[signableKeys[i]] + "\n");
+                + message[signableKeys[i]] + "\n", encoding);
         }
     }
 
@@ -123,8 +123,9 @@ var validateSignature = function (message, cb) {
  * @constructor
  * @param {RegExp} [hostPattern=/^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$/] - A pattern used to validate that a message's certificate originates from a trusted domain.
  */
-function MessageValidator(hostPattern) {
+function MessageValidator(hostPattern, encoding) {
     this.hostPattern = hostPattern || defaultHostPattern;
+    this.encoding = encoding;
 }
 
 /**
@@ -156,7 +157,7 @@ MessageValidator.prototype.validate = function (hash, cb) {
         return;
     }
 
-    validateSignature(hash, cb);
+    validateSignature(hash, cb, this.encoding);
 };
 
 module.exports = MessageValidator;

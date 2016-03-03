@@ -28,7 +28,7 @@ validator.validate(message, function (err, message) {
         // Your message could not be validated.
         return;
     }
-   
+
     // message has been validated and its signature checked.
 });
 ```
@@ -79,13 +79,22 @@ validator.validate(message, function (err, message) {
         console.error(err);
         return;
     }
-   
+
     if (message['Type'] === 'SubscriptionConfirmation') {
         https.get(message['SubscribeURL'], function (res) {
           // You have confirmed your endpoint subscription
         });
     }
 });
+```
+
+If an incoming message includes multibyte characters and its encoding is utf8,
+set the encoding to `validator`.
+
+```javascript
+var MessageValidator = require('sns-validator'),
+    validator = new MessageValidator();
+validator.encoding = 'utf8';
 ```
 
 ### Receiving a Notification
