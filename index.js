@@ -20,7 +20,16 @@ var url = require('url'),
         'SigningCertURL',
         'SignatureVersion'
     ],
-    signableKeys = [
+    signableKeysForNotification = [
+        'Message',
+        'MessageId',
+        'Subject',
+        'SubscribeURL',
+        'Timestamp',
+        'TopicArn',
+        'Type'
+    ],
+    signableKeysForSubscription = [
         'Message',
         'MessageId',
         'Subject',
@@ -93,6 +102,13 @@ var validateSignature = function (message, cb, encoding) {
         cb(new Error('The signature version '
             + message['SignatureVersion'] + ' is not supported.'));
         return;
+    }
+
+    var signableKeys = [];
+    if (message.Type === 'SubscriptionConfirmation') {
+        signableKeys = signableKeysForSubscription.slice(0);
+    } else {
+        signableKeys = signableKeysForNotification.slice(0);
     }
 
     var verifier = crypto.createVerify('RSA-SHA1');

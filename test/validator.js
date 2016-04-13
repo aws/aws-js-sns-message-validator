@@ -5,7 +5,7 @@ var chai = require('chai'),
     pem = require('pem'),
     _ = require('underscore'),
     MessageValidator = rewire('../index.js'),
-    signableKeys = MessageValidator.__get__('signableKeys'),
+    signableKeysForSubscription = MessageValidator.__get__('signableKeysForSubscription'),
     invalidMessage = {
         foo: 'bar',
         fizz: 'buzz'
@@ -53,10 +53,10 @@ describe('Message Validator', function () {
             for (var i = 0; i < validMessages.length; i++) {
                 var signer = crypto.createSign('RSA-SHA1');
 
-                for (var j = 0; j < signableKeys.length; j++) {
-                    if (signableKeys[j] in validMessages[i]) {
-                        signer.update(signableKeys[j] + "\n"
-                            + validMessages[i][signableKeys[j]] + "\n");
+                for (var j = 0; j < signableKeysForSubscription.length; j++) {
+                    if (signableKeysForSubscription[j] in validMessages[i]) {
+                        signer.update(signableKeysForSubscription[j] + "\n"
+                            + validMessages[i][signableKeysForSubscription[j]] + "\n");
                     }
                 }
 
@@ -208,10 +208,10 @@ describe('Message Validator', function () {
                 for (var i = 0; i < validMessages.length; i++) {
                     var signer = crypto.createSign('RSA-SHA1');
 
-                    for (var j = 0; j < signableKeys.length; j++) {
-                        if (signableKeys[j] in validMessages[i]) {
-                            signer.update(signableKeys[j] + "\n"
-                                + validMessages[i][signableKeys[j]] + "\n", 'utf8');
+                    for (var j = 0; j < signableKeysForSubscription.length; j++) {
+                        if (signableKeysForSubscription[j] in validMessages[i]) {
+                            signer.update(signableKeysForSubscription[j] + "\n"
+                                + validMessages[i][signableKeysForSubscription[j]] + "\n", 'utf8');
                         }
                     }
 
