@@ -86,6 +86,11 @@ var getCertificate = function (certUrl, cb) {
 
     https.get(certUrl, function (res) {
         var chunks = [];
+
+        if(res.statusCode !== 200){
+            return cb(new Error('Certificate could not be retrieved'));
+        }
+
         res
             .on('data', function (data) {
                 chunks.push(data.toString());
@@ -124,11 +129,14 @@ var validateSignature = function (message, cb, encoding) {
             cb(err);
             return;
         }
-
-        if (verifier.verify(certificate, message['Signature'], 'base64')) {
-            cb(null, message);
-        } else {
-            cb(new Error('The message signature is invalid.'));
+        try {
+            if (verifier.verify(certificate, message['Signature'], 'base64')) {
+                cb(null, message);
+            } else {
+                cb(new Error('The message signature is invalid.'));
+            }
+        } catch (e) {
+            cb(e);
         }
     });
 };
