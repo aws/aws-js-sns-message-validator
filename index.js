@@ -3,6 +3,7 @@
 var url = require('url'),
     https = require('https'),
     crypto = require('crypto'),
+    defaultEncoding = 'utf8',
     defaultHostPattern = /^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$/,
     certCache = {},
     subscriptionControlKeys = ['SubscribeURL', 'Token'],
@@ -86,6 +87,11 @@ var getCertificate = function (certUrl, cb) {
 
     https.get(certUrl, function (res) {
         var chunks = [];
+
+        if(res.statusCode !== 200){
+            return cb(new Error('Certificate could not be retrieved'));
+        }
+
         res
             .on('data', function (data) {
                 chunks.push(data.toString());
@@ -124,11 +130,14 @@ var validateSignature = function (message, cb, encoding) {
             cb(err);
             return;
         }
-
-        if (verifier.verify(certificate, message['Signature'], 'base64')) {
-            cb(null, message);
-        } else {
-            cb(new Error('The message signature is invalid.'));
+        try {
+            if (verifier.verify(certificate, message['Signature'], 'base64')) {
+                cb(null, message);
+            } else {
+                cb(new Error('The message signature is invalid.'));
+            }
+        } catch (e) {
+            cb(e);
         }
     });
 };
@@ -138,10 +147,11 @@ var validateSignature = function (message, cb, encoding) {
  *
  * @constructor
  * @param {RegExp} [hostPattern=/^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$/] - A pattern used to validate that a message's certificate originates from a trusted domain.
+ * @param {String} [encoding='utf8'] - The encoding of the messages being signed.
  */
 function MessageValidator(hostPattern, encoding) {
     this.hostPattern = hostPattern || defaultHostPattern;
-    this.encoding = encoding;
+    this.encoding = encoding || defaultEncoding;
 }
 
 /**

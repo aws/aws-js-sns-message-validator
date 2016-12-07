@@ -1,4 +1,6 @@
 var chai = require('chai'),
+    crypto = require('crypto'),
+    sandbox = require('sinon').sandbox.create(),
     expect = chai.expect,
     should = chai.should,
     rewire = require('rewire'),
@@ -24,15 +26,9 @@ var chai = require('chai'),
         SubscribeURL: 'https://www.amazonaws.com',
         Type: 'SubscriptionConfirmation'
     }),
-    utf8Message = {
-        Type: 'Notification',
-        MessageId: '1',
-        TopicArn: 'arn',
+    utf8Message = _.extend({}, validMessage, {
         Message: 'Ａ Ｍｅｓｓａｇｅ Ｆｏｒ ｙｏｕ！',
-        Timestamp: (new Date).toISOString(),
-        SignatureVersion: '1',
-        SigningCertURL: "https://localhost:56789/cert.pem"
-    },
+    }),
     utf8SubscriptionControlMessage = _.extend({}, utf8Message, {
         Token: 'Nonce',
         SubscribeURL: 'https://www.amazonaws.com',
@@ -48,7 +44,12 @@ describe('Message Validator', function () {
             if (err) throw err;
 
             var crypto = require('crypto'),
-                validMessages = [validMessage, validSubscriptionControlMessage];
+                validMessages = [
+                    validMessage,
+                    validSubscriptionControlMessage,
+                    utf8Message,
+                    utf8SubscriptionControlMessage
+                ];
 
             for (var i = 0; i < validMessages.length; i++) {
                 var signer = crypto.createSign('RSA-SHA1');
@@ -56,7 +57,7 @@ describe('Message Validator', function () {
                 for (var j = 0; j < signableKeysForSubscription.length; j++) {
                     if (signableKeysForSubscription[j] in validMessages[i]) {
                         signer.update(signableKeysForSubscription[j] + "\n"
-                            + validMessages[i][signableKeysForSubscription[j]] + "\n");
+                            + validMessages[i][signableKeysForSubscription[j]] + "\n", 'utf8');
                     }
                 }
 
@@ -69,6 +70,10 @@ describe('Message Validator', function () {
             });
             done();
         });
+    });
+
+    afterEach(function () {
+        sandbox.restore();
     });
 
     describe('validator interface', function () {
@@ -198,38 +203,27 @@ describe('Message Validator', function () {
     });
 
     describe('UTF8 message validation', function () {
-        before(function (done) {
-            pem.createCertificate({}, function (err, certHash) {
-                if (err) throw err;
-
-                var crypto = require('crypto'),
-                    validMessages = [utf8Message, utf8SubscriptionControlMessage];
-
-                for (var i = 0; i < validMessages.length; i++) {
-                    var signer = crypto.createSign('RSA-SHA1');
-
-                    for (var j = 0; j < signableKeysForSubscription.length; j++) {
-                        if (signableKeysForSubscription[j] in validMessages[i]) {
-                            signer.update(signableKeysForSubscription[j] + "\n"
-                                + validMessages[i][signableKeysForSubscription[j]] + "\n", 'utf8');
-                        }
-                    }
-
-                    validMessages[i]['Signature']
-                        = signer.sign(certHash.serviceKey, 'base64');
-                }
-
-                MessageValidator.__set__('getCertificate', function (url, cb) {
-                    cb(null, certHash.certificate);
-                });
-
-                done();
-            });
-        });
 
         it('should accept a valid UTF8 message', function (done) {
             (new MessageValidator(/^localhost:56789$/, 'utf8'))
                 .validate(utf8Message, done);
+        });
+    });
+
+    describe('invalid signing cert', function () {
+        it('should catch any errors thrown during verification', function (done) {
+            var verifier = {
+                update: sandbox.spy(),
+                verify: sandbox.stub().throws()
+            };
+            sandbox.stub(crypto, 'createVerify').returns(verifier);
+
+            (new MessageValidator(/^localhost:56789$/, 'utf8'))
+                .validate(utf8Message, function (err, result) {
+                    expect(err).not.to.be.undefined;
+                    expect(result).to.be.undefined;
+                    done();
+                });
         });
     });
 });
