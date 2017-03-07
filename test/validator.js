@@ -21,6 +21,15 @@ var chai = require('chai'),
         SignatureVersion: '1',
         SigningCertURL: "https://localhost:56789/cert.pem"
     },
+    validLambdaMessage = {
+        Type: 'Notification',
+        MessageId: '1',
+        TopicArn: 'arn',
+        Message: 'A Lambda message for you!',
+        Timestamp: (new Date).toISOString(),
+        SignatureVersion: '1',
+        SigningCertUrl: "https://localhost:56789/cert.pem"
+    },
     validSubscriptionControlMessage = _.extend({}, validMessage, {
         Token: 'Nonce',
         SubscribeURL: 'https://www.amazonaws.com',
@@ -46,6 +55,7 @@ describe('Message Validator', function () {
             var crypto = require('crypto'),
                 validMessages = [
                     validMessage,
+                    validLambdaMessage,
                     validSubscriptionControlMessage,
                     utf8Message,
                     utf8SubscriptionControlMessage
@@ -111,6 +121,23 @@ describe('Message Validator', function () {
                         done(e);
                     }
                 });
+        });
+
+        it('should accept Lambda payloads with improper "Url" casing', function (done) {
+            (new MessageValidator(/^localhost:56789$/))
+              .validate(validLambdaMessage, function (err, message) {
+                  if (err) {
+                      return done(new Error('The validator should have accepted this message.'));
+                  }
+
+                  try {
+                      expect(message.Message)
+                          .to.equal('A Lambda message for you!');
+                      done();
+                  } catch (e) {
+                      done(e);
+                  }
+              });
         });
 
         it('should reject hashes residing on an invalid domain', function (done) {

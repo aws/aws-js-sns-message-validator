@@ -41,9 +41,19 @@ var url = require('url'),
         'Type'
     ];
 
+var hashHasKey = function (hash, key) {
+    if (!(key in hash)) {
+        if (/URL$/.test(key) && key.replace(/URL$/, 'Url') in hash) {
+            return true;
+        }
+        return false;
+    }
+    return true;
+};
+
 var hashHasKeys = function (hash, keys) {
     for (var i = 0; i < keys.length; i++) {
-        if (!(keys[i] in hash)) {
+        if (!hashHasKey(hash, keys[i])) {
             return false;
         }
     }
@@ -178,7 +188,7 @@ MessageValidator.prototype.validate = function (hash, cb) {
         return;
     }
 
-    if (!validateUrl(hash['SigningCertURL'], hostPattern)) {
+    if (!validateUrl(hash['SigningCertURL'] || hash['SigningCertUrl'], hostPattern)) {
         cb(new Error('The certificate is located on an invalid domain.'));
         return;
     }
