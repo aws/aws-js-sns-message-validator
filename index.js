@@ -3,6 +3,7 @@
 var url = require('url'),
     https = require('https'),
     crypto = require('crypto'),
+    isNil = require('lodash.isnil'),
     defaultEncoding = 'utf8',
     defaultHostPattern = /^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$/,
     certCache = {},
@@ -129,13 +130,14 @@ var validateSignature = function (message, cb, encoding) {
 
     var verifier = crypto.createVerify('RSA-SHA1');
     for (var i = 0; i < signableKeys.length; i++) {
-        if (signableKeys[i] in message) {
+        if (signableKeys[i] in message && !isNil(message[signableKeys[i]])) {
             verifier.update(signableKeys[i] + "\n"
                 + message[signableKeys[i]] + "\n", encoding);
         }
     }
 
-    getCertificate(message['SigningCertURL'], function (err, certificate) {
+    const certificateUrl = message.SigningCertURL || message.SigningCertUrl;
+    getCertificate(certificateUrl, function (err, certificate) {
         if (err) {
             cb(err);
             return;
