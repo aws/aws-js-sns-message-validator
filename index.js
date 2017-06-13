@@ -136,7 +136,7 @@ var validateSignature = function (message, cb, encoding) {
         }
     }
 
-    const certificateUrl = message.SigningCertURL || message.SigningCertUrl;
+    var certificateUrl = message.SigningCertURL || message.SigningCertUrl;
     getCertificate(certificateUrl, function (err, certificate) {
         if (err) {
             cb(err);
