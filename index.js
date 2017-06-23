@@ -135,7 +135,7 @@ var validateSignature = function (message, cb, encoding) {
         }
     }
 
-    getCertificate(message['SigningCertURL'], function (err, certificate) {
+    getCertificate(message['SigningCertURL'] || message['SigningCertUrl'], function (err, certificate) {
         if (err) {
             cb(err);
             return;
