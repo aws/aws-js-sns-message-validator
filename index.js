@@ -72,6 +72,10 @@ function convertLambdaMessage(message) {
         }
     }
 
+    if ('Subject' in message && message.Subject === null) {
+        delete message.Subject;
+    }
+
     return message;
 }
 
