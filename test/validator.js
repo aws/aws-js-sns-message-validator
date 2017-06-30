@@ -25,6 +25,7 @@ var chai = require('chai'),
         Type: 'Notification',
         MessageId: '1',
         TopicArn: 'arn',
+        Subject: null,
         Message: 'A Lambda message for you!',
         Timestamp: (new Date).toISOString(),
         SignatureVersion: '1',
@@ -66,6 +67,14 @@ describe('Message Validator', function () {
 
                 for (var j = 0; j < signableKeysForSubscription.length; j++) {
                     if (signableKeysForSubscription[j] in validMessages[i]) {
+                        // skip signing null Subject fields to match Lambda behavior
+                        if (
+                            signableKeysForSubscription[j] === 'Subject' &&
+                            validMessages[i][signableKeysForSubscription[j]] === null
+                        ) {
+                            continue;
+                        }
+
                         signer.update(signableKeysForSubscription[j] + "\n"
                             + validMessages[i][signableKeysForSubscription[j]] + "\n", 'utf8');
                     }

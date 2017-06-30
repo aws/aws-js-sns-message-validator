@@ -39,21 +39,15 @@ var url = require('url'),
         'Token',
         'TopicArn',
         'Type'
-    ];
-
-var hashHasKey = function (hash, key) {
-    if (!(key in hash)) {
-        if (/URL$/.test(key) && key.replace(/URL$/, 'Url') in hash) {
-            return true;
-        }
-        return false;
-    }
-    return true;
-};
+    ],
+    lambdaMessageKeys = {
+        'SigningCertUrl': 'SigningCertURL',
+        'UnsubscribeUrl': 'UnsubscribeURL'
+    };
 
 var hashHasKeys = function (hash, keys) {
     for (var i = 0; i < keys.length; i++) {
-        if (!hashHasKey(hash, keys[i])) {
+        if (!(keys[i] in hash)) {
             return false;
         }
     }
@@ -70,6 +64,20 @@ var indexOf = function (array, value) {
 
     return -1;
 };
+
+function convertLambdaMessage(message) {
+    for (var key in lambdaMessageKeys) {
+        if (key in message) {
+            message[lambdaMessageKeys[key]] = message[key];
+        }
+    }
+
+    if ('Subject' in message && message.Subject === null) {
+        delete message.Subject;
+    }
+
+    return message;
+}
 
 var validateMessageStructure = function (message) {
     var valid = hashHasKeys(message, requiredKeys);
@@ -182,13 +190,14 @@ function MessageValidator(hostPattern, encoding) {
  */
 MessageValidator.prototype.validate = function (hash, cb) {
     var hostPattern = this.hostPattern;
+    hash = convertLambdaMessage(hash);
 
     if (!validateMessageStructure(hash)) {
         cb(new Error('Message missing required keys.'));
         return;
     }
 
-    if (!validateUrl(hash['SigningCertURL'] || hash['SigningCertUrl'], hostPattern)) {
+    if (!validateUrl(hash['SigningCertURL'], hostPattern)) {
         cb(new Error('The certificate is located on an invalid domain.'));
         return;
     }
