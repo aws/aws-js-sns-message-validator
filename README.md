@@ -119,8 +119,10 @@ Unsubscribing looks the same as subscribing, except the message type will be
 
 ```javascript
 if (message['Type'] === 'UnsubscribeConfirmation') {
+    // Unsubscribed in error? You can resubscribe by visiting the endpoint
+    // provided as the message's SubscribeURL field.
     https.get(message['SubscribeURL'], function (res) {
-        // You have unsubscribed your endpoint.
+        // You have re-subscribed your endpoint.
     });
 }
 ```
