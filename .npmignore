@@ -1,0 +1,7 @@
+.idea/
+.sandbox/
+node_modules/
+test/
+
+*.iml
+.travis.yml
