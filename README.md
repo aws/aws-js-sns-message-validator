@@ -8,6 +8,20 @@ The **Amazon SNS Message Validator for Node.js** library allows you to validate
 that incoming HTTP(S) POST messages are valid Amazon SNS notifications. This
 library is standalone and does not depend on the AWS SDK for JavaScript.
 
+## Installation
+
+The npm module's name is [`sns-validator`](https://www.npmjs.com/package/sns-validator). Install with npm or yarn:
+
+```
+npm i sns-validator
+```
+
+or 
+
+```
+yarn add sns-validator
+```
+
 ## Basic Usage
 
 To validate a message, you can instantiate a `MessageValidator` object and pass
