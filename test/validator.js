@@ -210,6 +210,11 @@ describe('Message Validator', function () {
             (new MessageValidator(/^localhost:56789$/))
                 .validate(validMessage, done);
         });
+
+        it('should accept valid messages as JSON strings', function (done) {
+            (new MessageValidator(/^localhost:56789$/))
+                .validate(JSON.stringify(validMessage), done);
+        });
     });
 
     describe('subscription control message validation', function () {
@@ -239,7 +244,6 @@ describe('Message Validator', function () {
     });
 
     describe('UTF8 message validation', function () {
-
         it('should accept a valid UTF8 message', function (done) {
             (new MessageValidator(/^localhost:56789$/, 'utf8'))
                 .validate(utf8Message, done);
