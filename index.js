@@ -189,7 +189,15 @@ function MessageValidator(hostPattern, encoding) {
  * @param {validationCallback} cb
  */
 MessageValidator.prototype.validate = function (hash, cb) {
-    var hostPattern = this.hostPattern;
+    if (typeof hash === 'string') {
+        try {
+            hash = JSON.parse(hash);
+        } catch (err) {
+            cb(err);
+            return;
+        }
+    }
+
     hash = convertLambdaMessage(hash);
 
     if (!validateMessageStructure(hash)) {
@@ -197,7 +205,7 @@ MessageValidator.prototype.validate = function (hash, cb) {
         return;
     }
 
-    if (!validateUrl(hash['SigningCertURL'], hostPattern)) {
+    if (!validateUrl(hash['SigningCertURL'], this.hostPattern)) {
         cb(new Error('The certificate is located on an invalid domain.'));
         return;
     }
