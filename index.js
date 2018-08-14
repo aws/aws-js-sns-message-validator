@@ -5,6 +5,7 @@ var url = require('url'),
     crypto = require('crypto'),
     defaultEncoding = 'utf8',
     defaultHostPattern = /^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$/,
+    defaultHttpOptions = {},
     certCache = {},
     subscriptionControlKeys = ['SubscribeURL', 'Token'],
     subscriptionControlMessageTypes = [
@@ -97,13 +98,24 @@ var validateUrl = function (urlToValidate, hostPattern) {
         && hostPattern.test(parsed.host);
 };
 
-var getCertificate = function (certUrl, cb) {
+var getCertificate = function (certUrl, httpOptions,  cb) {
     if (certCache.hasOwnProperty(certUrl)) {
         cb(null, certCache[certUrl]);
         return;
     }
 
-    https.get(certUrl, function (res) {
+    var reqUrl = url.parse(certUrl);
+    var options = {
+      host: reqUrl.host,
+      path: reqUrl.path,
+      method: 'GET'
+    };
+
+    if (httpOptions.agent) {
+        options.agent = httpOptions.agent;
+    }
+
+    https.get(options, function (res) {
         var chunks = [];
 
         if(res.statusCode !== 200){
@@ -121,7 +133,7 @@ var getCertificate = function (certUrl, cb) {
     }).on('error', cb)
 };
 
-var validateSignature = function (message, cb, encoding) {
+var validateSignature = function (message, cb, encoding, httpOptions) {
     if (message['SignatureVersion'] !== '1') {
         cb(new Error('The signature version '
             + message['SignatureVersion'] + ' is not supported.'));
@@ -143,7 +155,7 @@ var validateSignature = function (message, cb, encoding) {
         }
     }
 
-    getCertificate(message['SigningCertURL'], function (err, certificate) {
+    getCertificate(message['SigningCertURL'], httpOptions, function (err, certificate) {
         if (err) {
             cb(err);
             return;
@@ -164,12 +176,16 @@ var validateSignature = function (message, cb, encoding) {
  * A validator for inbound HTTP(S) SNS messages.
  *
  * @constructor
- * @param {RegExp} [hostPattern=/^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$/] - A pattern used to validate that a message's certificate originates from a trusted domain.
+ * @param {RegExp} [hostPattern=/^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$/] - A pattern used to validate that a
+ *   message's certificate originates from a trusted domain.
  * @param {String} [encoding='utf8'] - The encoding of the messages being signed.
+ * @param {Object} httpOptions - A set of options to pass to the low-level HTTP request. Currently supported options
+ *   are: agent
  */
-function MessageValidator(hostPattern, encoding) {
+function MessageValidator(hostPattern, encoding, httpOptions) {
     this.hostPattern = hostPattern || defaultHostPattern;
     this.encoding = encoding || defaultEncoding;
+    this.httpOptions = httpOptions || defaultHttpOptions;
 }
 
 /**
@@ -210,7 +226,7 @@ MessageValidator.prototype.validate = function (hash, cb) {
         return;
     }
 
-    validateSignature(hash, cb, this.encoding);
+    validateSignature(hash, cb, this.encoding, this.httpOptions);
 };
 
 module.exports = MessageValidator;

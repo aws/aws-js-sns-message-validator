@@ -84,7 +84,7 @@ describe('Message Validator', function () {
                     = signer.sign(certHash.serviceKey, 'base64');
             }
 
-            MessageValidator.__set__('getCertificate', function (url, cb) {
+            MessageValidator.__set__('getCertificate', function (url, httpOptions, cb) {
                 cb(null, certHash.certificate);
             });
             done();
