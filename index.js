@@ -149,14 +149,14 @@ var validateSignature = function (message, cb, encoding) {
             return;
         }
         try {
-            if (verifier.verify(certificate, message['Signature'], 'base64')) {
-                cb(null, message);
-            } else {
-                cb(new Error('The message signature is invalid.'));
+            if (!verifier.verify(certificate, message['Signature'], 'base64')) {
+                throw new Error('The message signature is invalid.');
             }
         } catch (e) {
             cb(e);
+            return;
         }
+        cb(null, message);
     });
 };
 
