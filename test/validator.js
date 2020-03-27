@@ -84,8 +84,8 @@ describe('Message Validator', function () {
                     = signer.sign(certHash.serviceKey, 'base64');
             }
 
-            MessageValidator.__set__('getCertificate', function (url, cb) {
-                cb(null, certHash.certificate);
+            MessageValidator.__set__('getCertificate', function (url) {
+                return Promise.resolve(certHash.certificate);
             });
             done();
         });
@@ -112,6 +112,18 @@ describe('Message Validator', function () {
                     }
                 });
         });
+
+        it('[promise] should return a promise that resolves to the validated message', function (done) {
+            (new MessageValidator(/^localhost:56789$/))
+                .validate(validMessage)
+                    .then(function (message) {
+                        expect(message).to.equal(validMessage);
+                        done();
+                    })
+                    .catch(function (err) {
+                        done(err)
+                    })
+        });
     });
 
     describe('message validation', function () {
@@ -132,6 +144,23 @@ describe('Message Validator', function () {
                 });
         });
 
+        it('[promise] should reject hashes without all required keys', function (done) {
+            (new MessageValidator)
+                .validate(invalidMessage)
+                    .then(function () {
+                        done(new Error('The validator should not have accepted this message.'));
+                    })
+                    .catch(function (err) {
+                        try {
+                            expect(err.message)
+                                .to.equal('Message missing required keys.');
+                            done();
+                        } catch (e) {
+                            done(e);
+                        }
+                    });
+        });
+
         it('should accept Lambda payloads with improper "Url" casing', function (done) {
             (new MessageValidator(/^localhost:56789$/))
               .validate(validLambdaMessage, function (err, message) {
@@ -149,6 +178,23 @@ describe('Message Validator', function () {
               });
         });
 
+        it('[promise] should accept Lambda payloads with improper "Url" casing', function (done) {
+            (new MessageValidator(/^localhost:56789$/))
+                .validate(validLambdaMessage)
+                    .then(function (message) {
+                        try {
+                            expect(message.Message)
+                                .to.equal('A Lambda message for you!');
+                            done();
+                        } catch (e) {
+                            done(e);
+                        }
+                    })
+                    .catch(function (err) {
+                        return done(new Error('The validator should have accepted this message.'));
+                    });
+        });
+
         it('should reject hashes residing on an invalid domain', function (done) {
             (new MessageValidator)
                 .validate(validMessage, function (err, message) {
@@ -164,6 +210,23 @@ describe('Message Validator', function () {
                         done(e);
                     }
                 });
+        });
+
+        it('[promise] should reject hashes residing on an invalid domain', function (done) {
+            (new MessageValidator)
+                .validate(validMessage)
+                    .then(function () {
+                        done(new Error('The validator should not have accepted this message.'));
+                    })
+                    .catch(function (err) {
+                        try {
+                            expect(err.message)
+                                .to.equal('The certificate is located on an invalid domain.');
+                            done();
+                        } catch (e) {
+                            done(e);
+                        }
+                    });
         });
 
         it('should reject hashes with an invalid signature type', function (done) {
@@ -186,6 +249,26 @@ describe('Message Validator', function () {
                 });
         });
 
+        it('[promise] should reject hashes with an invalid signature type', function (done) {
+            (new MessageValidator)
+                .validate(_.extend({}, validMessage, {
+                    SignatureVersion: '2',
+                    SigningCertURL: validCertUrl
+                }))
+                    .then(function () {
+                        done(new Error('The validator should not have accepted this message.'));
+                    })
+                    .catch(function (err) {
+                        try {
+                            expect(err.message)
+                                .to.equal('The signature version 2 is not supported.');
+                            done();
+                        } catch (e) {
+                            done(e);
+                        }
+                    });
+        });
+
         it('should attempt to verify the signature of well-structured messages', function (done) {
             (new MessageValidator(/^localhost:56789$/))
                 .validate(_.extend({}, validMessage, {
@@ -206,14 +289,50 @@ describe('Message Validator', function () {
                 });
         });
 
+        it('[promise] should attempt to verify the signature of well-structured messages', function (done) {
+            (new MessageValidator(/^localhost:56789$/))
+                .validate(_.extend({}, validMessage, {
+                    Signature: (new Buffer('NOT A VALID SIGNATURE'))
+                        .toString('base64')
+                }))
+                    .then(function () {
+                        done(new Error('The validator should not have accepted this message.'));
+                    })
+                    .catch(function (err) {
+                        try {
+                            expect(err.message)
+                                .to.equal('The message signature is invalid.');
+                            done();
+                        } catch (e) {
+                            done(e);
+                        }
+                    });
+        });
+
         it('should accept a valid message', function (done) {
             (new MessageValidator(/^localhost:56789$/))
                 .validate(validMessage, done);
         });
 
+        it('[promise] should accept a valid message', function (done) {
+            (new MessageValidator(/^localhost:56789$/))
+                .validate(validMessage)
+                    .then(function () {
+                        done()
+                    });
+        });
+
         it('should accept valid messages as JSON strings', function (done) {
             (new MessageValidator(/^localhost:56789$/))
                 .validate(JSON.stringify(validMessage), done);
+        });
+
+        it('[promise] should accept valid messages as JSON strings', function (done) {
+            (new MessageValidator(/^localhost:56789$/))
+                .validate(JSON.stringify(validMessage))
+                    .then(function () {
+                        done()
+                    });
         });
     });
 
@@ -237,9 +356,36 @@ describe('Message Validator', function () {
                 });
         });
 
+        it('[promise] should reject subscribe hashes without additional keys', function (done) {
+            (new MessageValidator(/^localhost:56789$/))
+                .validate(_.extend({}, validMessage, {
+                    Type: 'SubscriptionConfirmation'
+                }))
+                    .then(function () {
+                        done(new Error('The validator should not have accepted this message.'));
+                    })
+                    .catch(function (err) {
+                        try {
+                            expect(err.message)
+                                .to.equal('Message missing required keys.');
+                            done();
+                        } catch (e) {
+                            done(e);
+                        }
+                    });
+        });
+
         it('should accept a valid subscription control message', function (done) {
             (new MessageValidator(/^localhost:56789$/))
                 .validate(validSubscriptionControlMessage, done);
+        });
+
+        it('[promise] should accept a valid subscription control message', function (done) {
+            (new MessageValidator(/^localhost:56789$/))
+                .validate(validSubscriptionControlMessage)
+                    .then(function () {
+                        done();
+                    });
         });
     });
 
@@ -247,6 +393,14 @@ describe('Message Validator', function () {
         it('should accept a valid UTF8 message', function (done) {
             (new MessageValidator(/^localhost:56789$/, 'utf8'))
                 .validate(utf8Message, done);
+        });
+
+        it('[promise] should accept a valid UTF8 message', function (done) {
+            (new MessageValidator(/^localhost:56789$/, 'utf8'))
+                .validate(utf8Message)
+                    .then(function () {
+                        done();
+                    });
         });
     });
 
@@ -264,6 +418,25 @@ describe('Message Validator', function () {
                     expect(result).to.be.undefined;
                     done();
                 });
+        });
+
+        it('[promise] should catch any errors thrown during verification', function (done) {
+            var verifier = {
+                update: sandbox.spy(),
+                verify: sandbox.stub().throws()
+            };
+            sandbox.stub(crypto, 'createVerify').returns(verifier);
+
+            (new MessageValidator(/^localhost:56789$/, 'utf8'))
+                .validate(utf8Message)
+                    .then(function (result) {
+                        expect(result).to.be.undefined;
+                        done();
+                    })
+                    .catch(function (err) {
+                        expect(err).not.to.be.undefined;
+                        done();
+                    })
         });
     });
 });
