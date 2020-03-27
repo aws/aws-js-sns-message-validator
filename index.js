@@ -97,35 +97,37 @@ var validateUrl = function (urlToValidate, hostPattern) {
         && hostPattern.test(parsed.host);
 };
 
-var getCertificate = function (certUrl, cb) {
-    if (certCache.hasOwnProperty(certUrl)) {
-        cb(null, certCache[certUrl]);
-        return;
-    }
-
-    https.get(certUrl, function (res) {
-        var chunks = [];
-
-        if(res.statusCode !== 200){
-            return cb(new Error('Certificate could not be retrieved'));
+var getCertificate = function (certUrl) {
+    return new Promise(function (resolve, reject) {
+        if (certCache.hasOwnProperty(certUrl)) {
+            resolve(certCache[certUrl]);
+            return;
         }
 
-        res
-            .on('data', function (data) {
-                chunks.push(data.toString());
-            })
-            .on('end', function () {
-                certCache[certUrl] = chunks.join('');
-                cb(null, certCache[certUrl]);
-            });
-    }).on('error', cb)
+        https.get(certUrl, function (res) {
+            var chunks = [];
+
+            if(res.statusCode !== 200){
+                reject(new Error('Certificate could not be retrieved'));
+                return;
+            }
+
+            res
+                .on('data', function (data) {
+                    chunks.push(data.toString());
+                })
+                .on('end', function () {
+                    certCache[certUrl] = chunks.join('');
+                    resolve(certCache[certUrl]);
+                });
+        }).on('error', reject);
+    });
 };
 
-var validateSignature = function (message, cb, encoding) {
+var validateSignature = function (message, encoding) {
     if (message['SignatureVersion'] !== '1') {
-        cb(new Error('The signature version '
+        return Promise.reject(new Error('The signature version '
             + message['SignatureVersion'] + ' is not supported.'));
-        return;
     }
 
     var signableKeys = [];
@@ -143,21 +145,18 @@ var validateSignature = function (message, cb, encoding) {
         }
     }
 
-    getCertificate(message['SigningCertURL'], function (err, certificate) {
-        if (err) {
-            cb(err);
-            return;
-        }
-        try {
-            if (verifier.verify(certificate, message['Signature'], 'base64')) {
-                cb(null, message);
-            } else {
-                cb(new Error('The message signature is invalid.'));
+    return getCertificate(message['SigningCertURL'])
+        .then(function (certificate) {
+            try {
+                if (verifier.verify(certificate, message['Signature'], 'base64')) {
+                    return Promise.resolve(message);
+                } else {
+                    return Promise.reject(new Error('The message signature is invalid.'));
+                }
+            } catch (e) {
+                return Promise.reject(new Error('The message signature is invalid.'));
             }
-        } catch (e) {
-            cb(e);
-        }
-    });
+        })
 };
 
 /**
@@ -186,31 +185,57 @@ function MessageValidator(hostPattern, encoding) {
  * Validates a message's signature and passes it to the provided callback.
  *
  * @param {Object} hash
- * @param {validationCallback} cb
+ * @param {validationCallback} cb - Optional callback, if not passed a Promise is returned.
+ * @returns {Promise<Object>} - If no callback is passed, a Promise is returned.
  */
 MessageValidator.prototype.validate = function (hash, cb) {
     if (typeof hash === 'string') {
         try {
             hash = JSON.parse(hash);
         } catch (err) {
-            cb(err);
-            return;
+            if (cb) {
+                cb(err);
+                return;
+            }
+            return Promise.reject(err);
         }
     }
 
     hash = convertLambdaMessage(hash);
 
     if (!validateMessageStructure(hash)) {
-        cb(new Error('Message missing required keys.'));
-        return;
+        var err = new Error('Message missing required keys.');
+        if (cb) {
+            cb(err);
+            return;
+        }
+        return Promise.reject(err);
     }
 
     if (!validateUrl(hash['SigningCertURL'], this.hostPattern)) {
-        cb(new Error('The certificate is located on an invalid domain.'));
+        var err = new Error('The certificate is located on an invalid domain.');
+        if (cb) {
+            cb(err);
+            return;
+        }
+
+        return Promise.reject(err);
+    }
+
+    var result = validateSignature(hash, this.encoding);
+
+    if (cb) {
+        result
+            .then(function (message) {
+                cb(null, message);
+            })
+            .catch(function (err) {
+                cb(err);
+            });
         return;
     }
 
-    validateSignature(hash, cb, this.encoding);
+    return result;
 };
 
 module.exports = MessageValidator;

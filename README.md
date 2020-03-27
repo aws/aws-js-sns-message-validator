@@ -47,6 +47,22 @@ validator.validate(message, function (err, message) {
 });
 ```
 
+The `validate` method also supports promises, if no callback is passed a promise
+is returned:
+
+```javascript
+var MessageValidator = require('sns-validator'),
+    validator = new MessageValidator();
+
+validator.validate(message)
+    then(function (message) {
+        // message has been validated and its signature checked.
+    })
+    .catch(function (err) {
+        // Your message could not be validated.
+    });
+```
+
 ## Installation
 
 The SNS Message Validator relies on the Node crypto module and is only designed
