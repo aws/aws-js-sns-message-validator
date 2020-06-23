@@ -33,9 +33,25 @@ an error and the second being the successfully validated SNS message.
 The message validator checks the `SigningCertURL`, `SignatureVersion`, and
 `Signature` to make sure they are valid and consistent with the message data.
 
+#### Javascript
 ```javascript
 var MessageValidator = require('sns-validator'),
     validator = new MessageValidator();
+
+validator.validate(message, function (err, message) {
+    if (err) {
+        // Your message could not be validated.
+        return;
+    }
+
+    // message has been validated and its signature checked.
+});
+```
+
+#### Typescript
+```typescript
+import { MessageValidator } from "sns-validator"
+const validator = new MessageValidator();
 
 validator.validate(message, function (err, message) {
     if (err) {
