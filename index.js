@@ -93,7 +93,7 @@ var validateUrl = function (urlToValidate, hostPattern) {
     var parsed = url.parse(urlToValidate);
 
     return parsed.protocol === 'https:'
-        && parsed.path.substr(-4) === '.pem'
+        && parsed.path.slice(-4) === '.pem'
         && hostPattern.test(parsed.host);
 };
 
