@@ -21,6 +21,15 @@ var chai = require('chai'),
         SignatureVersion: '1',
         SigningCertURL: "https://localhost:56789/cert.pem"
     },
+    validSHA256Message = {
+        Type: 'Notification',
+        MessageId: '1',
+        TopicArn: 'arn',
+        Message: 'A message for you!',
+        Timestamp: (new Date).toISOString(),
+        SignatureVersion: '2',
+        SigningCertURL: "https://localhost:56789/cert.pem"
+    },
     validLambdaMessage = {
         Type: 'Notification',
         MessageId: '1',
@@ -56,6 +65,7 @@ describe('Message Validator', function () {
             var crypto = require('crypto'),
                 validMessages = [
                     validMessage,
+                    validSHA256Message,
                     validLambdaMessage,
                     validSubscriptionControlMessage,
                     utf8Message,
@@ -63,7 +73,8 @@ describe('Message Validator', function () {
                 ];
 
             for (var i = 0; i < validMessages.length; i++) {
-                var signer = crypto.createSign('RSA-SHA1');
+                var signatureVersion = validMessages[i]['SignatureVersion'];
+                var signer = (signatureVersion === '1') ? crypto.createSign('RSA-SHA1') : crypto.createSign('RSA-SHA256');
 
                 for (var j = 0; j < signableKeysForSubscription.length; j++) {
                     if (signableKeysForSubscription[j] in validMessages[i]) {
@@ -134,19 +145,19 @@ describe('Message Validator', function () {
 
         it('should accept Lambda payloads with improper "Url" casing', function (done) {
             (new MessageValidator(/^localhost:56789$/))
-              .validate(validLambdaMessage, function (err, message) {
-                  if (err) {
-                      return done(new Error('The validator should have accepted this message.'));
-                  }
+                .validate(validLambdaMessage, function (err, message) {
+                    if (err) {
+                        return done(new Error('The validator should have accepted this message.'));
+                    }
 
-                  try {
-                      expect(message.Message)
-                          .to.equal('A Lambda message for you!');
-                      done();
-                  } catch (e) {
-                      done(e);
-                  }
-              });
+                    try {
+                        expect(message.Message)
+                            .to.equal('A Lambda message for you!');
+                        done();
+                    } catch (e) {
+                        done(e);
+                    }
+                });
         });
 
         it('should reject hashes residing on an invalid domain', function (done) {
@@ -169,7 +180,7 @@ describe('Message Validator', function () {
         it('should reject hashes with an invalid signature type', function (done) {
             (new MessageValidator)
                 .validate(_.extend({}, validMessage, {
-                    SignatureVersion: '2',
+                    SignatureVersion: '3',
                     SigningCertURL: validCertUrl
                 }), function (err, message) {
                     if (!err) {
@@ -178,7 +189,7 @@ describe('Message Validator', function () {
 
                     try {
                         expect(err.message)
-                            .to.equal('The signature version 2 is not supported.');
+                            .to.equal('The signature version 3 is not supported.');
                         done();
                     } catch (e) {
                         done(e);
@@ -209,6 +220,11 @@ describe('Message Validator', function () {
         it('should accept a valid message', function (done) {
             (new MessageValidator(/^localhost:56789$/))
                 .validate(validMessage, done);
+        });
+
+        it('should accept a valid message', function (done) {
+            (new MessageValidator(/^localhost:56789$/))
+                .validate(validSHA256Message, done);
         });
 
         it('should accept valid messages as JSON strings', function (done) {

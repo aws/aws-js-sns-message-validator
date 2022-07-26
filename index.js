@@ -122,9 +122,10 @@ var getCertificate = function (certUrl, cb) {
 };
 
 var validateSignature = function (message, cb, encoding) {
-    if (message['SignatureVersion'] !== '1') {
+    var signatureVersion = message['SignatureVersion'];
+    if (signatureVersion !== '1' && signatureVersion !== '2') {
         cb(new Error('The signature version '
-            + message['SignatureVersion'] + ' is not supported.'));
+            + signatureVersion + ' is not supported.'));
         return;
     }
 
@@ -135,7 +136,7 @@ var validateSignature = function (message, cb, encoding) {
         signableKeys = signableKeysForNotification.slice(0);
     }
 
-    var verifier = crypto.createVerify('RSA-SHA1');
+    var verifier = (signatureVersion === '1') ? crypto.createVerify('RSA-SHA1') : crypto.createVerify('RSA-SHA256');
     for (var i = 0; i < signableKeys.length; i++) {
         if (signableKeys[i] in message) {
             verifier.update(signableKeys[i] + "\n"
