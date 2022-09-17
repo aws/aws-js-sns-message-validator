@@ -214,4 +214,6 @@ MessageValidator.prototype.validate = function (hash, cb) {
     validateSignature(hash, cb, this.encoding);
 };
 
+MessageValidator.MessageValidator = MessageValidator;
+
 module.exports = MessageValidator;
