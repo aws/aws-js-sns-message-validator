@@ -1,6 +1,6 @@
 var chai = require('chai'),
     crypto = require('crypto'),
-    sandbox = require('sinon').sandbox.create(),
+    sandbox = require('sinon').createSandbox(),
     expect = chai.expect,
     should = chai.should,
     rewire = require('rewire'),
@@ -200,7 +200,7 @@ describe('Message Validator', function () {
         it('should attempt to verify the signature of well-structured messages', function (done) {
             (new MessageValidator(/^localhost:56789$/))
                 .validate(_.extend({}, validMessage, {
-                    Signature: (new Buffer('NOT A VALID SIGNATURE'))
+                    Signature: (new Buffer.from('NOT A VALID SIGNATURE'))
                         .toString('base64')
                 }), function (err, message) {
                     if (!err) {
