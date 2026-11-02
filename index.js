@@ -6,8 +6,8 @@ var url = require('url'),
     defaultEncoding = 'utf8',
     defaultHostPattern = /^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$/,
     certCache = {},
-    subscriptionControlKeys = ['SubscribeURL', 'Token'],
-    subscriptionControlMessageTypes = [
+    supportedMessageTypes = [
+        'Notification',
         'SubscriptionConfirmation',
         'UnsubscribeConfirmation'
     ],
@@ -21,25 +21,34 @@ var url = require('url'),
         'SigningCertURL',
         'SignatureVersion'
     ],
-    signableKeysForNotification = [
-        'Message',
-        'MessageId',
-        'Subject',
-        'SubscribeURL',
-        'Timestamp',
-        'TopicArn',
-        'Type'
-    ],
-    signableKeysForSubscription = [
-        'Message',
-        'MessageId',
-        'Subject',
-        'SubscribeURL',
-        'Timestamp',
-        'Token',
-        'TopicArn',
-        'Type'
-    ],
+    signableKeysByType = {
+        'Notification': [
+            'Message',
+            'MessageId',
+            'Subject',
+            'Timestamp',
+            'TopicArn',
+            'Type'
+        ],
+        'SubscriptionConfirmation': [
+            'Message',
+            'MessageId',
+            'SubscribeURL',
+            'Timestamp',
+            'Token',
+            'TopicArn',
+            'Type'
+        ],
+        'UnsubscribeConfirmation': [
+            'Message',
+            'MessageId',
+            'SubscribeURL',
+            'Timestamp',
+            'Token',
+            'TopicArn',
+            'Type'
+        ]
+    },
     lambdaMessageKeys = {
         'SigningCertUrl': 'SigningCertURL',
         'UnsubscribeUrl': 'UnsubscribeURL'
@@ -80,13 +89,34 @@ function convertLambdaMessage(message) {
 }
 
 var validateMessageStructure = function (message) {
-    var valid = hashHasKeys(message, requiredKeys);
-
-    if (indexOf(subscriptionControlMessageTypes, message['Type']) > -1) {
-        valid = valid && hashHasKeys(message, subscriptionControlKeys);
+    if (!hashHasKeys(message, requiredKeys)) {
+        return false;
     }
 
-    return valid;
+    var signableKeys = signableKeysByType[message['Type']];
+    for (var i = 0; i < signableKeys.length; i++) {
+        if (signableKeys[i] !== 'Subject' && !(signableKeys[i] in message)) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
+var validateSignedValues = function (message) {
+    var signableKeys = signableKeysByType[message['Type']];
+
+    for (var i = 0; i < signableKeys.length; i++) {
+        var key = signableKeys[i];
+        if (key in message
+            && key !== 'Message'
+            && key !== 'Subject'
+            && /[\r\n]/.test(message[key])) {
+            return key;
+        }
+    }
+
+    return null;
 };
 
 var validateUrl = function (urlToValidate, hostPattern) {
@@ -129,12 +159,7 @@ var validateSignature = function (message, cb, encoding) {
         return;
     }
 
-    var signableKeys = [];
-    if (message.Type === 'SubscriptionConfirmation') {
-        signableKeys = signableKeysForSubscription.slice(0);
-    } else {
-        signableKeys = signableKeysForNotification.slice(0);
-    }
+    var signableKeys = signableKeysByType[message.Type];
 
     var verifier = (signatureVersion === '1') ? crypto.createVerify('RSA-SHA1') : crypto.createVerify('RSA-SHA256');
     for (var i = 0; i < signableKeys.length; i++) {
@@ -201,8 +226,25 @@ MessageValidator.prototype.validate = function (hash, cb) {
 
     hash = convertLambdaMessage(hash);
 
+    if (!hashHasKeys(hash, ['Type'])) {
+        cb(new Error('Message missing required keys.'));
+        return;
+    }
+
+    if (indexOf(supportedMessageTypes, hash['Type']) === -1) {
+        cb(new Error('The message Type is not supported.'));
+        return;
+    }
+
     if (!validateMessageStructure(hash)) {
         cb(new Error('Message missing required keys.'));
+        return;
+    }
+
+    var fieldWithNewline = validateSignedValues(hash);
+    if (fieldWithNewline !== null) {
+        cb(new Error('The message field "' + fieldWithNewline
+            + '" must not contain newlines.'));
         return;
     }
 
