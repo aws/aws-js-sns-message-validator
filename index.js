@@ -1,11 +1,13 @@
 "use strict";
 
-var url = require('url'),
+var URL = require('url').URL,
     https = require('https'),
     crypto = require('crypto'),
     defaultEncoding = 'utf8',
     defaultHostPattern = /^sns\.[a-zA-Z0-9\-]{3,}\.amazonaws\.com(\.cn)?$/,
     certCache = {},
+    maxCertificateSize = 64 * 1024,
+    certificateRequestTimeout = 10000,
     supportedMessageTypes = [
         'Notification',
         'SubscriptionConfirmation',
@@ -119,12 +121,30 @@ var validateSignedValues = function (message) {
     return null;
 };
 
+// Returns the canonical SigningCertURL to fetch, or null if invalid.
 var validateUrl = function (urlToValidate, hostPattern) {
-    var parsed = url.parse(urlToValidate);
+    if (typeof urlToValidate !== 'string') {
+        return null;
+    }
 
-    return parsed.protocol === 'https:'
-        && parsed.path.substr(-4) === '.pem'
-        && hostPattern.test(parsed.host);
+    var parsed;
+    try {
+        parsed = new URL(urlToValidate);
+    } catch (e) {
+        return null;
+    }
+
+    if (parsed.protocol !== 'https:'
+        || parsed.username !== ''
+        || parsed.password !== ''
+        || parsed.search !== ''
+        || parsed.hash !== ''
+        || parsed.pathname.substr(-4) !== '.pem'
+        || !hostPattern.test(parsed.host)) {
+        return null;
+    }
+
+    return parsed.href;
 };
 
 var getCertificate = function (certUrl, cb) {
@@ -133,25 +153,59 @@ var getCertificate = function (certUrl, cb) {
         return;
     }
 
-    https.get(certUrl, function (res) {
-        var chunks = [];
+    var finished = false,
+        done = function (err, certificate) {
+            if (finished) {
+                return;
+            }
+            finished = true;
+            cb(err, certificate);
+        },
+        req;
 
-        if(res.statusCode !== 200){
-            return cb(new Error('Certificate could not be retrieved'));
-        }
+    try {
+        req = https.get(certUrl, function (res) {
+            var chunks = [],
+                size = 0;
 
-        res
-            .on('data', function (data) {
-                chunks.push(data.toString());
-            })
-            .on('end', function () {
-                certCache[certUrl] = chunks.join('');
-                cb(null, certCache[certUrl]);
-            });
-    }).on('error', cb)
+            if (res.statusCode !== 200) {
+                res.resume();
+                return done(new Error('Certificate could not be retrieved'));
+            }
+
+            res
+                .on('data', function (data) {
+                    size += data.length;
+                    if (size > maxCertificateSize) {
+                        req.destroy();
+                        done(new Error('Certificate could not be retrieved'));
+                        return;
+                    }
+                    chunks.push(data);
+                })
+                .on('end', function () {
+                    if (finished) {
+                        return;
+                    }
+                    var certificate = Buffer.concat(chunks).toString();
+                    certCache[certUrl] = certificate;
+                    done(null, certificate);
+                })
+                .on('error', done);
+        });
+    } catch (e) {
+        done(e);
+        return;
+    }
+
+    req.on('error', done);
+    req.setTimeout(certificateRequestTimeout, function () {
+        req.destroy();
+        done(new Error('Certificate could not be retrieved'));
+    });
 };
 
-var validateSignature = function (message, cb, encoding) {
+var validateSignature = function (message, certUrl, cb, encoding) {
     var signatureVersion = message['SignatureVersion'];
     if (signatureVersion !== '1' && signatureVersion !== '2') {
         cb(new Error('The signature version '
@@ -169,7 +223,7 @@ var validateSignature = function (message, cb, encoding) {
         }
     }
 
-    getCertificate(message['SigningCertURL'], function (err, certificate) {
+    getCertificate(certUrl, function (err, certificate) {
         if (err) {
             cb(err);
             return;
@@ -248,12 +302,13 @@ MessageValidator.prototype.validate = function (hash, cb) {
         return;
     }
 
-    if (!validateUrl(hash['SigningCertURL'], this.hostPattern)) {
+    var certUrl = validateUrl(hash['SigningCertURL'], this.hostPattern);
+    if (certUrl === null) {
         cb(new Error('The certificate is located on an invalid domain.'));
         return;
     }
 
-    validateSignature(hash, cb, this.encoding);
+    validateSignature(hash, certUrl, cb, this.encoding);
 };
 
 module.exports = MessageValidator;

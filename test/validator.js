@@ -254,6 +254,69 @@ describe('Message Validator', function () {
                 });
         });
 
+        [
+            'https://sns.us-east-1.amazonaws.com%2eattacker.example/cert.pem',
+            'https://sns.us-east-1.amazonaws.com%2Eattacker.example/cert.pem',
+            'https://sns.us-east-1.amazonaws.com%E3%80%82attacker.example/cert.pem',
+            'https://sns.cn-north-1.amazonaws.com.cn%2eattacker.example/cert.pem',
+            'https://sns.us-east-1.amazonaws.com.attacker.example/cert.pem',
+            'https://sns.us-east-1.amazonaws.com%40attacker.example/cert.pem',
+            'https://sns.us-east-1.amazonaws.com%252eattacker.example/cert.pem',
+            'https://user@sns.us-east-1.amazonaws.com/cert.pem',
+            'https://sns.us-east-1.amazonaws.com/cert?.pem',
+            'https://sns.us-east-1.amazonaws.com/cert#.pem',
+            'http://sns.us-east-1.amazonaws.com/cert.pem',
+            'not a url'
+        ].forEach(function (certUrl) {
+            it('should reject the certificate URL ' + certUrl, function (done) {
+                var getCertificate = sandbox.spy();
+                var restore = MessageValidator.__set__('getCertificate', getCertificate);
+
+                try {
+                    (new MessageValidator)
+                        .validate(_.extend({}, validMessage, {
+                            SigningCertURL: certUrl
+                        }), function (err) {
+                            restore();
+                            try {
+                                expect(err).to.be.an.instanceof(Error);
+                                expect(err.message)
+                                    .to.equal('The certificate is located on an invalid domain.');
+                                expect(getCertificate.called).to.equal(false);
+                                done();
+                            } catch (e) {
+                                done(e);
+                            }
+                        });
+                } catch (e) {
+                    restore();
+                    done(e);
+                }
+            });
+        });
+
+        it('should fetch the certificate from the canonical, validated URL', function (done) {
+            var fetchedUrl,
+                restore = MessageValidator.__set__('getCertificate', function (url, cb) {
+                    fetchedUrl = url;
+                    cb(new Error('stop'));
+                });
+
+            (new MessageValidator)
+                .validate(_.extend({}, validMessage, {
+                    SigningCertURL: 'https://SNS.us-east-1.amazonaws.com/cert.pem'
+                }), function (err) {
+                    restore();
+                    try {
+                        expect(fetchedUrl)
+                            .to.equal('https://sns.us-east-1.amazonaws.com/cert.pem');
+                        done();
+                    } catch (e) {
+                        done(e);
+                    }
+                });
+        });
+
         it('should reject hashes with an invalid signature type', function (done) {
             (new MessageValidator)
                 .validate(_.extend({}, validMessage, {
