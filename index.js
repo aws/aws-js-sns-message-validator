@@ -1,5 +1,7 @@
 "use strict";
 
+const HttpsProxyAgent = require("https-proxy-agent");
+
 var url = require('url'),
     https = require('https'),
     crypto = require('crypto'),
@@ -128,12 +130,17 @@ var validateUrl = function (urlToValidate, hostPattern) {
 };
 
 var getCertificate = function (certUrl, cb) {
+
+    // Use HTTPS_PROXY or HTTP_PROXY if available
+    const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+    const agent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
+
     if (certCache.hasOwnProperty(certUrl)) {
         cb(null, certCache[certUrl]);
         return;
     }
 
-    https.get(certUrl, function (res) {
+    https.get(certUrl, { agent }, function (res) {
         var chunks = [];
 
         if(res.statusCode !== 200){

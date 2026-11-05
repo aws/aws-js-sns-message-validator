@@ -1,26 +1,12 @@
-# Amazon SNS Message Validator for JavaScript
+# Fork of Amazon SNS Message Validator for JavaScript
 
-[![@awsforjs on Twitter](http://img.shields.io/badge/twitter-%40awsforjs-blue.svg?style=flat)](https://twitter.com/awsforjs)
-[![Build Status](https://img.shields.io/travis/aws/aws-js-sns-message-validator.svg?style=flat)](https://travis-ci.org/aws/aws-js-sns-message-validator)
-[![Apache 2 License](https://img.shields.io/github/license/aws/aws-js-sns-message-validator.svg?style=flat)](http://aws.amazon.com/apache-2-0/)
+This fork of [`sns-validator`](https://www.npmjs.com/package/sns-validator) uses https lib with the proxy settings.
+
+## Amazon SNS Message Validator for JavaScript
 
 The **Amazon SNS Message Validator for Node.js** library allows you to validate
 that incoming HTTP(S) POST messages are valid Amazon SNS notifications. This
 library is standalone and does not depend on the AWS SDK for JavaScript.
-
-## Installation
-
-The npm module's name is [`sns-validator`](https://www.npmjs.com/package/sns-validator). Install with npm or yarn:
-
-```
-npm i sns-validator
-```
-
-or 
-
-```
-yarn add sns-validator
-```
 
 ## Basic Usage
 
@@ -34,7 +20,7 @@ The message validator checks the `SigningCertURL`, `SignatureVersion`, and
 `Signature` to make sure they are valid and consistent with the message data.
 
 ```javascript
-var MessageValidator = require('sns-validator'),
+var MessageValidator = require("@turbot/sns-validator"),
     validator = new MessageValidator();
 
 validator.validate(message, function (err, message) {
@@ -65,9 +51,9 @@ endpoints. However, SNS messages are used by many of the other AWS services to
 communicate information asynchronously about your AWS resources. Some examples
 include:
 
-* Configuring Amazon Glacier to notify you when a retrieval job is complete.
-* Configuring AWS CloudTrail to notify you when a new log file has been written.
-* Configuring Amazon Elastic Transcoder to notify you when a transcoding job
+- Configuring Amazon Glacier to notify you when a retrieval job is complete.
+- Configuring AWS CloudTrail to notify you when a new log file has been written.
+- Configuring Amazon Elastic Transcoder to notify you when a transcoding job
   changes status (e.g., from "Progressing" to "Complete")
 
 Though you can certainly subscribe your email address to receive SNS messages
@@ -84,8 +70,8 @@ In order to handle a `SubscriptionConfirmation` message, you must use the
 `SubscribeURL` value in the incoming message:
 
 ```javascript
-var https = require('https'),
-    MessageValidator = require('sns-validator'),
+var https = require("https"),
+    MessageValidator = require("@turbot/sns-validator"),
     validator = new MessageValidator();
 
 validator.validate(message, function (err, message) {
@@ -94,8 +80,8 @@ validator.validate(message, function (err, message) {
         return;
     }
 
-    if (message['Type'] === 'SubscriptionConfirmation') {
-        https.get(message['SubscribeURL'], function (res) {
+    if (message["Type"] === "SubscriptionConfirmation") {
+        https.get(message["SubscribeURL"], function (res) {
           // You have confirmed your endpoint subscription
         });
     }
@@ -106,9 +92,9 @@ If an incoming message includes multibyte characters and its encoding is utf8,
 set the encoding to `validator`.
 
 ```javascript
-var MessageValidator = require('sns-validator'),
+var MessageValidator = require("@turbot/sns-validator"),
     validator = new MessageValidator();
-validator.encoding = 'utf8';
+validator.encoding = "utf8";
 ```
 
 ### Receiving a Notification
@@ -117,9 +103,9 @@ To receive a notification, use the same code as the preceding example, but
 check for the `Notification` message type.
 
 ```javascript
-if (message['Type'] === 'Notification') {
+if (message["Type"] === "Notification") {
     // Do whatever you want with the message body and data.
-    console.log(message['MessageId'] + ': ' + message['Message']);
+    console.log(message["MessageId"] + ": " + message["Message"]);
 }
 ```
 
@@ -132,10 +118,10 @@ Unsubscribing looks the same as subscribing, except the message type will be
 `UnsubscribeConfirmation`.
 
 ```javascript
-if (message['Type'] === 'UnsubscribeConfirmation') {
+if (message["Type"] === "UnsubscribeConfirmation") {
     // Unsubscribed in error? You can resubscribe by visiting the endpoint
     // provided as the message's SubscribeURL field.
-    https.get(message['SubscribeURL'], function (res) {
+    https.get(message["SubscribeURL"], function (res) {
         // You have re-subscribed your endpoint.
     });
 }
