@@ -3,6 +3,7 @@ var chai = require('chai'),
     https = require('https'),
     pem = require('pem'),
     expect = chai.expect,
+    rewire = require('rewire'),
     MessageValidator = require('../index.js'),
     signableKeys = [
         'Message',
@@ -145,5 +146,167 @@ describe('End-to-end validation', function () {
                 }
             });
         });
+    });
+});
+
+describe('Certificate retrieval', function () {
+    "use strict";
+
+    var certificate,
+        getCertificate,
+        maxCertificateSize,
+        originalCa,
+        server,
+        sockets = [],
+        baseUrl;
+
+    before(function (done) {
+        var validator = rewire('../index.js');
+
+        validator.__set__('certificateRequestTimeout', 200);
+        getCertificate = validator.__get__('getCertificate');
+        maxCertificateSize = validator.__get__('maxCertificateSize');
+
+        pem.createCertificate({
+            altNames: ['127.0.0.1'],
+            commonName: '127.0.0.1',
+            days: 1,
+            selfSigned: true
+        }, function (err, certHash) {
+            if (err) {
+                done(err);
+                return;
+            }
+
+            certificate = certHash;
+            originalCa = https.globalAgent.options.ca;
+            https.globalAgent.options.ca = certificate.certificate;
+
+            server = https.createServer({
+                cert: certificate.certificate,
+                key: certificate.serviceKey
+            }, function (req, res) {
+                switch (req.url) {
+                    case '/cert.pem':
+                        res.writeHead(200);
+                        res.end(certificate.certificate);
+                        break;
+                    case '/max.pem':
+                        res.writeHead(200);
+                        res.end(Buffer.alloc(maxCertificateSize, 'a'));
+                        break;
+                    case '/oversized.pem':
+                        res.writeHead(200);
+                        res.end(Buffer.alloc(maxCertificateSize + 1, 'a'));
+                        break;
+                    case '/hang.pem':
+                        // Never respond.
+                        break;
+                    default:
+                        res.writeHead(404);
+                        res.end('not found');
+                }
+            });
+            server.on('secureConnection', function (socket) {
+                sockets.push(socket);
+            });
+            server.listen(0, '127.0.0.1', function () {
+                baseUrl = 'https://127.0.0.1:' + server.address().port;
+                done();
+            });
+        });
+    });
+
+    after(function (done) {
+        if (originalCa === undefined) {
+            delete https.globalAgent.options.ca;
+        } else {
+            https.globalAgent.options.ca = originalCa;
+        }
+        sockets.forEach(function (socket) {
+            socket.destroy();
+        });
+        server.close(done);
+    });
+
+    // Calls getCertificate and reports every callback invocation, waiting
+    // long enough for any late request/response events to fire.
+    function fetch(url, check) {
+        var calls = [];
+
+        getCertificate(url, function () {
+            calls.push(Array.prototype.slice.call(arguments));
+        });
+
+        var wait = setInterval(function () {
+            if (calls.length > 0) {
+                clearInterval(wait);
+                setTimeout(function () {
+                    check(calls);
+                }, 100);
+            }
+        }, 10);
+    }
+
+    function expectSingleError(calls, done) {
+        try {
+            expect(calls.length).to.equal(1);
+            expect(calls[0][0]).to.be.an.instanceof(Error);
+            done();
+        } catch (e) {
+            done(e);
+        }
+    }
+
+    it('returns the certificate body', function (done) {
+        fetch(baseUrl + '/cert.pem', function (calls) {
+            try {
+                expect(calls.length).to.equal(1);
+                expect(calls[0][0]).to.equal(null);
+                expect(calls[0][1]).to.equal(certificate.certificate);
+                done();
+            } catch (e) {
+                done(e);
+            }
+        });
+    });
+
+    it('accepts a certificate exactly at the size limit', function (done) {
+        fetch(baseUrl + '/max.pem', function (calls) {
+            try {
+                expect(calls.length).to.equal(1);
+                expect(calls[0][0]).to.equal(null);
+                expect(calls[0][1].length).to.equal(maxCertificateSize);
+                done();
+            } catch (e) {
+                done(e);
+            }
+        });
+    });
+
+    it('rejects a certificate larger than the size limit once', function (done) {
+        fetch(baseUrl + '/oversized.pem', function (calls) {
+            expectSingleError(calls, done);
+        });
+    });
+
+    it('rejects a non-200 response', function (done) {
+        fetch(baseUrl + '/missing.pem', function (calls) {
+            expectSingleError(calls, done);
+        });
+    });
+
+    it('times out a server that never responds once', function (done) {
+        fetch(baseUrl + '/hang.pem', function (calls) {
+            expectSingleError(calls, done);
+        });
+    });
+
+    it('returns an error instead of throwing when https.get throws', function (done) {
+        expect(function () {
+            fetch('https://%40/cert.pem', function (calls) {
+                expectSingleError(calls, done);
+            });
+        }).to.not.throw();
     });
 });
